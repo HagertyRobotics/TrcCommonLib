@@ -30,6 +30,7 @@ import org.opencv.core.Mat;
 import org.opencv.core.MatOfInt;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
+import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
@@ -213,23 +214,22 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
     private final TrcDbgTrace tracer;
     private final TrcVisionPerformanceMetrics performanceMetrics;
     private final String instanceName;
-    private Integer colorConversion = Imgproc.COLOR_RGB2GRAY;
+    private final Integer colorConversion;
     private double[] colorThresholds;
     private final FilterContourParams filterContourParams;
     private final boolean externalContourOnly;
     private final Mat colorConversionOutput = new Mat();
     private final Mat colorThresholdOutput = new Mat();
     private final Mat morphologyOutput = new Mat();
+    private Mat cvErodeOutput = new Mat();
     private final Mat hierarchy = new Mat();
     private final Mat[] intermediateMats;
 
     private final AtomicReference<DetectedObject[]> detectedObjectsUpdate = new AtomicReference<>();
-    private int intermediateStep = 1;
-    private boolean annotateEnabled = true;
+    private int intermediateStep = 0;
+    private boolean annotateEnabled = false;
     private int morphOp = Imgproc.MORPH_CLOSE;
     private Mat kernelMat = null;
-
-    public Robot robot;
 
     /**
      * Constructor: Create an instance of the object.
@@ -262,11 +262,12 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
         this.colorThresholds = colorThresholds;
         this.filterContourParams = filterContourParams;
         this.externalContourOnly = externalContourOnly;
-        intermediateMats = new Mat[4];
+        intermediateMats = new Mat[5];
         intermediateMats[0] = null;
         intermediateMats[1] = colorConversionOutput;
         intermediateMats[2] = colorThresholdOutput;
         intermediateMats[3] = morphologyOutput;
+        intermediateMats[4] = cvErodeOutput;
     }   //TrcOpenCvColorBlobPipeline
 
     /**
@@ -366,16 +367,15 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
      * @param input specifies the input image to be processed.
      * @return array of detected objects.
      */
-
+    @Override
     public DetectedObject[] process(Mat input)
     {
-
         DetectedObject[] detectedObjects = null;
         ArrayList<MatOfPoint> contoursOutput = new ArrayList<>();
         ArrayList<MatOfPoint> filterContoursOutput = new ArrayList<>();
         double startTime = TrcTimer.getCurrentTime();
 
-        intermediateMats[0] = input;
+        intermediateMats[1] = input;
         // Do color space conversion.
         if (colorConversion != null)
         {
@@ -393,6 +393,15 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
             Imgproc.morphologyEx(input, morphologyOutput, morphOp, kernelMat);
             input = morphologyOutput;
         }
+
+        //erode
+        Mat cvErodeKernel = new Mat();
+        Point cvErodeAnchor = new Point(-1, -1);
+        double cvErodeIterations = 0.0;
+        int cvErodeBordertype = Core.BORDER_CONSTANT;
+        Scalar cvErodeBordervalue = new Scalar(-1);
+        cvErode(input, cvErodeKernel, cvErodeAnchor, cvErodeIterations, cvErodeBordertype, cvErodeBordervalue, cvErodeOutput);
+
         // Find contours.
         Imgproc.findContours(
             input, contoursOutput, hierarchy, Imgproc.RETR_CCOMP, Imgproc.CHAIN_APPROX_SIMPLE);
@@ -424,10 +433,10 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
 
             if (annotateEnabled)
             {
-                Mat output = getIntermediateOutput(1);
+                Mat output = getIntermediateOutput(intermediateStep);
                 Scalar color = intermediateStep == 0? ANNOTATE_RECT_COLOR: ANNOTATE_RECT_WHITE;
                 annotateFrame(
-                    colorConversionOutput, instanceName, detectedObjects, color, ANNOTATE_RECT_THICKNESS, ANNOTATE_FONT_SCALE);
+                    output, instanceName, detectedObjects, color, ANNOTATE_RECT_THICKNESS, ANNOTATE_FONT_SCALE);
 //                // This line is for tuning Homography.
 //                Imgproc.line(output, new Point(0, 120), new Point(639, 120), new Scalar(255, 255, 255), 2);
             }
@@ -502,6 +511,7 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
      * @param step specifies the intermediate step (0 is the original input frame).
      * @return processed frame of the specified step.
      */
+    @Override
     public Mat getIntermediateOutput(int step)
     {
         Mat mat = null;
@@ -607,5 +617,19 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
 
         }
     }   //filterContours
+
+    private void cvErode(Mat src, Mat kernel, Point anchor, double iterations,
+                         int borderType, Scalar borderValue, Mat dst) {
+        if (kernel == null) {
+            kernel = new Mat();
+        }
+        if (anchor == null) {
+            anchor = new Point(-1,-1);
+        }
+        if (borderValue == null) {
+            borderValue = new Scalar(-1);
+        }
+        Imgproc.erode(src, dst, kernel, anchor, (int)iterations, borderType, borderValue);
+    }
 
 }  //class TrcOpenCvColorBlobPipeline
