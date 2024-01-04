@@ -139,7 +139,9 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
     public static class FilterContourParams
     {
         double minArea = 0.0;
+        double maxArea = 0.0;
         double minPerimeter = 0.0;
+        double maxPerimeter = 0.0;
         double[] widthRange = {0.0, 1000000000000.0};
         double[] heightRange = {0.0, 1000000000000.0};
         double[] solidityRange = {0.0, 100.0};
@@ -152,9 +154,21 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
             return this;
         }   //setMinArea
 
+        public FilterContourParams setMaxArea(double maxArea)
+        {
+            this.maxArea = maxArea;
+            return this;
+        }   //setMinArea
+
         public FilterContourParams setMinPerimeter(double minPerimeter)
         {
             this.minPerimeter = minPerimeter;
+            return this;
+        }   //setMinPerimeter
+
+        public FilterContourParams setMaxPerimeter(double maxPerimeter)
+        {
+            this.maxPerimeter = maxPerimeter;
             return this;
         }   //setMinPerimeter
 
@@ -200,7 +214,7 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
                 Locale.US,
                 "minArea=%f,minPerim=%f,width=(%f,%f),height=(%f,%f),solidity=(%f,%f),vertices=(%f,%f)," +
                 "aspectRatio=(%f,%f)",
-                minArea, minPerimeter, widthRange[0], widthRange[1], heightRange[0], heightRange[1], solidityRange[0],
+                minArea, maxArea, minPerimeter, maxPerimeter, widthRange[0], widthRange[1], heightRange[0], heightRange[1], solidityRange[0],
                 solidityRange[1], verticesRange[0], verticesRange[1], aspectRatioRange[0], aspectRatioRange[1]);
         }   //toString
 
@@ -221,13 +235,13 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
     private final Mat colorConversionOutput = new Mat();
     private final Mat colorThresholdOutput = new Mat();
     private final Mat morphologyOutput = new Mat();
-    private Mat cvErodeOutput = new Mat();
+    private final Mat cvErodeOutput = new Mat();
     private final Mat hierarchy = new Mat();
     private final Mat[] intermediateMats;
 
     private final AtomicReference<DetectedObject[]> detectedObjectsUpdate = new AtomicReference<>();
     private int intermediateStep = 0;
-    private boolean annotateEnabled = false;
+    private boolean annotateEnabled = true;
     private int morphOp = Imgproc.MORPH_CLOSE;
     private Mat kernelMat = null;
 
@@ -394,13 +408,15 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
             input = morphologyOutput;
         }
 
-        //erode
+        // Step CV_erode0:
+        Mat cvErodeSrc = input;
         Mat cvErodeKernel = new Mat();
         Point cvErodeAnchor = new Point(-1, -1);
-        double cvErodeIterations = 0.0;
+        double cvErodeIterations = 3.0;
         int cvErodeBordertype = Core.BORDER_CONSTANT;
         Scalar cvErodeBordervalue = new Scalar(-1);
-        cvErode(input, cvErodeKernel, cvErodeAnchor, cvErodeIterations, cvErodeBordertype, cvErodeBordervalue, cvErodeOutput);
+        cvErode(cvErodeSrc, cvErodeKernel, cvErodeAnchor, cvErodeIterations, cvErodeBordertype, cvErodeBordervalue, cvErodeOutput);
+        input = cvErodeOutput;
 
         // Find contours.
         Imgproc.findContours(
@@ -415,20 +431,18 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
 
 
         //remove parent
-        for(int i = 0; i < filterContoursOutput.size();i++){ //hierarchy order: next, previous, first child, parent
-            if(hierarchy.get(0, i)[2] > 0){ //this should be checking child index
-                contoursOutput.add(filterContoursOutput.get(i));
-            }
-        }
+//        for(int i = 0; i < filterContoursOutput.size();i++){ //hierarchy order: next, previous, first child, parent
+//            if(hierarchy.get(0, i)[2] > 0){ //this should be checking child index
+//                contoursOutput.add(filterContoursOutput.get(i));
+//            }
+//        }
 
         if (contoursOutput.size() > 0)
         {
             detectedObjects = new DetectedObject[contoursOutput.size()];
-            for (int i = 0; i < detectedObjects.length; i++) {
-                if (contoursOutput.get(i) != null) {
-
-                    detectedObjects[i] = new DetectedObject(instanceName, contoursOutput.get(i));
-                }
+            for (int i = 0; i < detectedObjects.length; i++)
+            {
+                detectedObjects[i] = new DetectedObject(instanceName, contoursOutput.get(i));
             }
 
             if (annotateEnabled)
@@ -554,65 +568,33 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
         {
             final MatOfPoint contour = inputContours.get(i);
             final Rect bb = Imgproc.boundingRect(contour);
-            // Check width.
-            if (bb.width < filterContourParams.widthRange[0] || bb.width > filterContourParams.widthRange[1])
-            {
-                continue;
-            }
-            // Check height.
-            if (bb.height < filterContourParams.heightRange[0] || bb.height > filterContourParams.heightRange[1])
-            {
-                continue;
-            }
-            // Check area.
-            final double area = Imgproc.contourArea(contour);
-            if (area < filterContourParams.minArea)
-            {
-                continue;
-            }
-            // Check perimeter.
-            if (Imgproc.arcLength(new MatOfPoint2f(contour.toArray()), true) < filterContourParams.minPerimeter)
-            {
-                continue;
-            }
-            // Perform contour approximation
-            MatOfPoint2f approx = new MatOfPoint2f();
-            Imgproc.approxPolyDP(new MatOfPoint2f(contour.toArray()), approx, 0.6, true);
-//            // Check solidity.
-//            Imgproc.convexHull(contour, hull);
-//            MatOfPoint mopHull = new MatOfPoint();
-//            mopHull.create((int) hull.size().height, 1, CvType.CV_32SC2);
-//            for (int j = 0; j < hull.size().height; j++)
-//            {
-//                int index = (int)hull.get(j, 0)[0];
-//                double[] point = new double[] { contour.get(index, 0)[0], contour.get(index, 0)[1]};
-//                mopHull.put(j, 0, point);
-//            }
-//            final double solid = 100 * area / Imgproc.contourArea(mopHull);
-//            if (solid < filterContourParams.solidityRange[0] || solid > filterContourParams.solidityRange[1])
+//            // Check width.
+//            if (bb.width < filterContourParams.widthRange[0] || bb.width > filterContourParams.widthRange[1])
 //            {
 //                continue;
 //            }
-            // Check vertex count.
-            if (contour.rows() < filterContourParams.verticesRange[0] ||
-                contour.rows() > filterContourParams.verticesRange[1])
-            {
-                continue;
-            }
-//            // Check aspect ratio.
-//            final double ratio = bb.width / (double)bb.height;
-//            if (ratio < filterContourParams.aspectRatioRange[0] || ratio > filterContourParams.aspectRatioRange[1])
+//            // Check height.
+//            if (bb.height < filterContourParams.heightRange[0] || bb.height > filterContourParams.heightRange[1])
 //            {
 //                continue;
 //            }
-            // Check circularity.
-            MatOfPoint2f contour2f = new MatOfPoint2f(contour.toArray());
-            double perimeter = Imgproc.arcLength(contour2f, true);
-            double circularity = (4 * Math.PI * area) / Math.pow(perimeter, 2);
 
-            if (circularity >= 0.8 && circularity <= 1.0)
-            {
+            final double area = Imgproc.contourArea(contour);
+            Log.i("area: ", "area: " + area);
+            double perimeter = Imgproc.arcLength(new MatOfPoint2f(contour.toArray()), true);
+            Log.i("perimeter: ", "perimeter: " + perimeter);
+            MatOfPoint2f contour2f = new MatOfPoint2f(contour.toArray());
+            double circularity = (4 * Math.PI * area) / Math.pow(perimeter, 2);
+            Log.i("circularity: ", "circularity: " + circularity);
+
+            if ((area < filterContourParams.maxArea && area > filterContourParams.minArea) && (perimeter > filterContourParams.minPerimeter && perimeter < filterContourParams.maxPerimeter) && (circularity < 1.0 && circularity > 0.5)) {
+                // Perform contour approximation
+                MatOfPoint2f approx = new MatOfPoint2f();
+                Imgproc.approxPolyDP(new MatOfPoint2f(contour.toArray()), approx, 0.6, true);
+
                 output.add(contour);
+
+
             }
 
         }
