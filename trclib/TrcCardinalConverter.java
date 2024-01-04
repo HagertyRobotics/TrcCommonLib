@@ -49,6 +49,11 @@ public class TrcCardinalConverter<D>
     private final int[] numCrossovers;
     private boolean enabled = false;
 
+    private int size;
+    private double total = 0d;
+    private int index = 0;
+    private double data[];
+
     /**
      * Constructor: Creates an instance of the object.
      *
@@ -81,6 +86,10 @@ public class TrcCardinalConverter<D>
             prevData[i] = new TrcSensor.SensorData<>(0.0, 0.0);
             numCrossovers[i] = 0;
         }
+        this.size = 5;
+        data = new double[size];
+        for (int i = 0; i < size; i++) data[i] = 0d;
+
     }   //TrcCardinalConverter
 
     /**
@@ -174,15 +183,37 @@ public class TrcCardinalConverter<D>
      */
     public synchronized TrcSensor.SensorData<Double> getCartesianData(int index)
     {
+
         TrcSensor.SensorData<Double> data = sensor.getProcessedData(index, dataType);
+        TrcSensor.SensorData<Double> rdata = sensor.getProcessedData(index,dataType);
+
+        double avg = getAverage();
 
         if (enabled)
         {
             data.value += (cardinalRangeHighs[index] - cardinalRangeLows[index])*numCrossovers[index];
+
+            if((data.value > (avg + 30.0)) || (data.value < (avg - 30.0))){
+                rdata.value = avg;
+            }else{
+                add(data.value);
+                rdata.value = data.value;
+            }
         }
 
-        return data;
+        return rdata;
     }   //getCartesianData
+
+    public void add(double x) {
+        total -= data[index];
+        data[index] = x;
+        total += x;
+        if (++index == size) index = 0;
+    }
+
+    public double getAverage() {
+        return total / size;
+    }
 
     /**
      * This method is called periodically to check for range crossovers.
