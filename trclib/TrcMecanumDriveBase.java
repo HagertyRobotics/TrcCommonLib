@@ -108,10 +108,14 @@ public class TrcMecanumDriveBase extends TrcSimpleDriveBase
             double x1 = x*cosA - y*sinA;
             double y1 = x*sinA + y*cosA;
 
-            if (isGyroAssistEnabled())
-            {
-                rotation += getGyroAssistPower(rotation);
+//            if (isGyroAssistEnabled())
+//            {
+//                rotation += getGyroAssistPower(rotation);
+//            }
+            if(isAngleAssistEnabled()){
+                rotation +=getAngleAssistPower(rotation);
             }
+
 
             if (isAntiTippingEnabled())
             {

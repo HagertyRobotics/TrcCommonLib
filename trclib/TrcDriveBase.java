@@ -241,7 +241,13 @@ public abstract class TrcDriveBase implements TrcExclusiveSubsystem
 
     // GyroAssist driving.
     private TrcPidController gyroAssistPidCtrl = null;
+
+    private TrcPidController angleAssistPidCtrl = null;
+
+    private Double quadAngle = 0.0;
     private Double gyroAssistHeading = null;
+
+    private Double angleAssistHeading = null;
     private boolean robotTurning = false;
 
     private TrcPidController xTippingPidCtrl = null;
@@ -930,6 +936,11 @@ public abstract class TrcDriveBase implements TrcExclusiveSubsystem
         this.gyroAssistPidCtrl = turnPidCtrl;
     }   //setGyroAssistEnabled
 
+    public void setAngleAssistEnabled(TrcPidController turnPidCtrl)
+    {
+        this.angleAssistPidCtrl = turnPidCtrl;
+    }   //setGyroAssistEnabled
+
     /**
      * This method checks if Gyro Assist is enabled.
      *
@@ -939,6 +950,15 @@ public abstract class TrcDriveBase implements TrcExclusiveSubsystem
     {
         return gyroAssistPidCtrl != null;
     }   //isGyroAssistEnabled
+
+    public boolean isAngleAssistEnabled()
+    {
+        return angleAssistPidCtrl != null;
+    }
+
+    public void setConstantAngle(double angle){
+        quadAngle = angle;
+    }
 
     /**
      * This method calculates and returns the gyro assist power to be added to turnPower to compensate heading drift.
@@ -976,6 +996,44 @@ public abstract class TrcDriveBase implements TrcExclusiveSubsystem
 
         return gyroAssistPower;
     }   //getGyroAssistPower
+
+    protected double getAngleAssistPower(double turnPower)
+    {
+        double angleAssistPower = 0.0;
+
+        if (angleAssistPidCtrl != null)
+        {
+            if (turnPower != 0.0)
+            {
+                // Robot is turning, do not need to apply GyroAssist power.
+                robotTurning = true;
+            }
+            else
+            {
+                // The robot is going straight.
+                if (robotTurning || angleAssistHeading == null)
+                {
+                    // Robot just stopped turning or this is the first call, save the current robot heading.
+                    // Set the current robot heading as the PID target to maintain this heading.
+                    if(isAngleAssistEnabled()){
+                        angleAssistHeading = quadAngle;
+                    }else{
+                        angleAssistHeading = getHeading();
+                    }
+
+                    angleAssistPidCtrl.setTarget(angleAssistHeading);
+                    robotTurning = false;
+                    tracer.traceDebug(moduleName, "Maintain robot heading at " + angleAssistHeading);
+                }
+                // Robot is going straight, use turnPid controller to calculate GyroAssist power.
+                angleAssistPower = angleAssistPidCtrl.getOutput();
+            }
+        }
+
+        return angleAssistPower;
+    }   //getGyroAssistPower
+
+
 
     /**
      * This method enables anti-tipping drive.
