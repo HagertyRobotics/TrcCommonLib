@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
+import teamcode.RobotParams;
+
 /**
  * This class implements a platform independent servo. Typically, this class is to be extended by a platform
  * dependent servo class and must provide a set of abstract methods. This makes sure the rest of the TrcLib classes
@@ -518,6 +520,11 @@ public abstract class TrcServo implements TrcExclusiveSubsystem
     public void setPosition(double position)
     {
         setPosition(null, 0.0, position, null, 0.0);
+    }   //setPosition
+
+    public void setOffsetPosition(double position, double offset)
+    {
+        setPosition(null, 0.0, position + offset, null, 0.0);
     }   //setPosition
 
     /**
