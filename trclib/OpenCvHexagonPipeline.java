@@ -241,7 +241,7 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
 
     private final AtomicReference<DetectedObject[]> detectedObjectsUpdate = new AtomicReference<>();
     private int intermediateStep = 0;
-    private boolean annotateEnabled = true;
+    private boolean annotateEnabled = false;
     private int morphOp = Imgproc.MORPH_CLOSE;
     private Mat kernelMat = null;
 
@@ -389,7 +389,7 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
         ArrayList<MatOfPoint> filterContoursOutput = new ArrayList<>();
         double startTime = TrcTimer.getCurrentTime();
 
-        intermediateMats[1] = input;
+        intermediateMats[0] = input;
         // Do color space conversion.
         if (colorConversion != null)
         {
@@ -587,14 +587,12 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
             double circularity = (4 * Math.PI * area) / Math.pow(perimeter, 2);
             Log.i("circularity: ", "circularity: " + circularity);
 
-            if ((area < filterContourParams.maxArea && area > filterContourParams.minArea) && (perimeter > filterContourParams.minPerimeter && perimeter < filterContourParams.maxPerimeter) && (circularity < 1.0 && circularity > 0.5)) {
+            if ((area < filterContourParams.maxArea && area > filterContourParams.minArea) && (perimeter > filterContourParams.minPerimeter && perimeter < filterContourParams.maxPerimeter) && (circularity < 0.8 && circularity > 0.4)) {
                 // Perform contour approximation
                 MatOfPoint2f approx = new MatOfPoint2f();
                 Imgproc.approxPolyDP(new MatOfPoint2f(contour.toArray()), approx, 0.6, true);
 
                 output.add(contour);
-
-
             }
 
         }
