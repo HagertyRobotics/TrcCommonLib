@@ -158,11 +158,7 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
         {
             this.maxArea = maxArea;
             return this;
-<<<<<<< Updated upstream
-        }   //setMinArea
-=======
         }   //setMaxArea
->>>>>>> Stashed changes
 
         public FilterContourParams setMinPerimeter(double minPerimeter)
         {
@@ -571,11 +567,8 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
         for (int i = 0; i < inputContours.size(); i++) {
             final MatOfPoint contour = inputContours.get(i);
             final Rect bb = Imgproc.boundingRect(contour);
-<<<<<<< Updated upstream
+
 //            // Check width.
-=======
-            // Check width.
->>>>>>> Stashed changes
 //            if (bb.width < filterContourParams.widthRange[0] || bb.width > filterContourParams.widthRange[1])
 //            {
 //                continue;
@@ -587,7 +580,6 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
 //            }
 
             final double area = Imgproc.contourArea(contour);
-<<<<<<< Updated upstream
             Log.i("area: ", "area: " + area);
             double perimeter = Imgproc.arcLength(new MatOfPoint2f(contour.toArray()), true);
             Log.i("perimeter: ", "perimeter: " + perimeter);
@@ -597,18 +589,6 @@ public class OpenCvHexagonPipeline implements TrcOpenCvPipeline<TrcOpenCvDetecto
 
             if ((area < filterContourParams.maxArea && area > filterContourParams.minArea) && (perimeter > filterContourParams.minPerimeter && perimeter < filterContourParams.maxPerimeter) && (circularity < 0.8 && circularity > 0.4)) {
                 // Perform contour approximation
-=======
-            Log.i("area", "area" + area);
-            double perimeter = Imgproc.arcLength(new MatOfPoint2f(contour.toArray()), true);
-            Log.i("perimeter", "perimeter" + perimeter);
-            MatOfPoint2f contour2f = new MatOfPoint2f(contour.toArray());
-            double circularity = (4 * Math.PI * area) / Math.pow(perimeter, 2);
-            Log.i("circularity", "circularity" + circularity);
-
-            if ((area < filterContourParams.maxArea && area > filterContourParams.minArea) && (perimeter > filterContourParams.minPerimeter && perimeter < filterContourParams.maxPerimeter) && (circularity < 0.8 && circularity > 0.4)) {
-                // Perform contour approximation
-                //
->>>>>>> Stashed changes
                 MatOfPoint2f approx = new MatOfPoint2f();
                 Imgproc.approxPolyDP(new MatOfPoint2f(contour.toArray()), approx, 0.6, true);
 
